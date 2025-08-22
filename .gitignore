@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.dist/
+.build/
+.venv/
+venv/
+
+# Conda / envs (if you ever place env here—usually not recommended)
+env/
+*.conda
+*.lock
+
+# VS Code
+.vscode/
+.history/
+
+# Tests & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Runtime
+logs/
+.env
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

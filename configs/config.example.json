@@ -1,0 +1,21 @@
+{
+  "mode": "lora",                       // "lora" or "cellular"
+  "gnss_hz": 0.5,                       // 0.5 Hz = every 2 seconds
+  "serial_port": "/dev/ttyUSB0",
+  "serial_baud": 9600,
+  "rfid_enabled": true,
+  "uplink": {
+    "lora": {
+      "frequency_mhz": 868.0,
+      "spreading_factor": 7
+    },
+    "cellular": {
+      "apn": "internet",
+      "endpoint": "https://example.com/ingest"
+    }
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "logs/runtime.log"
+  }
+}
