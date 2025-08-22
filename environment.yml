@@ -1,0 +1,8 @@
+name: enduro
+channels:
+  - defaults
+dependencies:
+  - pip
+  - python=3.11
+  - numpy
+prefix: /home/matthew/anaconda3/envs/enduro
