@@ -8,6 +8,8 @@ __pycache__/
 .build/
 .venv/
 venv/
+enduro_env/
+.venv311
 
 # Conda / envs (if you ever place env here—usually not recommended)
 env/

@@ -1,8 +1,11 @@
-name: enduro
-channels:
-  - defaults
-dependencies:
-  - pip
-  - python=3.11
-  - numpy
-prefix: /home/matthew/anaconda3/envs/enduro
+# This file has been depreceated and is no longer in use as you cannot use conda environments on a Raspberry Pi.
+# The environment is now managed using a requirements.txt file for pip.
+# The contents of this file are left here for reference.
+# name: enduro
+# channels:
+#   - defaults
+# dependencies:
+#   - pip
+#   - python=3.11
+#   - numpy
+# prefix: /home/matthew/anaconda3/envs/enduro
