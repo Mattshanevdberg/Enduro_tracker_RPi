@@ -1,1 +1,2 @@
-numpy==2.3.2
+--only-binary=:all:
+numpy==2.2.4
