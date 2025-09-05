@@ -26,8 +26,18 @@ from src.gps import *
 def main():
     print("Starting Enduro Tracker...")
 
-    # set the globals
-    GNSS_SEARCH_RATE = config['global']['GNSS_SEARCH_RATE']
+    # set the globals 
+    #(set in config file)
+    GNSS_SEARCH_RATE = config['global']['GNSS_SEARCH_RATE'] # rate that we get GNSS readings in seconds
+    GNSS_SEND_BATCH_SIZE = config['global']['GNSS_SEND_BATCH_SIZE'] # number of GNSS readings to send in one batch
+    # LORA_SEND_RATE = config['global']['LORA_SEND_RATE']
+    # other globals...
+    last_gnss_time = 0
+    sat_available = False
+    gnss_send_count = 0
+    transmit_log_empty = True
+    gnss_dict_send = {}
+    transmit_log = []
     
 
     # initialize GNSS
@@ -58,10 +68,39 @@ def main():
         # gnss.enable_power()
 
         # Fetch position
-        gnss_dict = gnss.get_gnss_dict(test_mode=VSCODE_TEST)
+        gnss_dict_current = gnss.get_gnss_dict(test_mode=VSCODE_TEST)
 
         # set the timestamp
         last_gnss_time = time.time()
+
+        # Check satellite availability (potentially use this to send a signal or something)
+        sat_available, _ = gnss.check_sats(gnss_dict_current)
+
+        # Append the GNSS data to a log file
+        gnss.append_gnss_to_log(gnss_dict_current)
+        
+        # append the current gnss dict to the send gnss dict
+        if gnss_send_count == 0:
+            gnss_dict_send = {} # initialize empty dict if first time
+        gnss_dict_send = gnss.append_gnss_dict_send(gnss_dict_send, gnss_dict_current)
+
+        # check if there is a backlog of transmissions to send
+        if transmit_log_empty:
+            # if there is no backlog, check if we have reached the batch size to send
+            if gnss_send_count >= GNSS_SEND_BATCH_SIZE:
+                pass
+            else:
+                # if not, increment gnss_send_count and wait until the next GNSS search interval has elapsed
+                gnss_send_count += 1
+                gnss.wait_for_send(last_gnss_time, GNSS_SEARCH_RATE)
+                continue  # Breaks out of the current iteration of the loop and starts the next iteration (get next GNSS reading)
+        else:
+            pass
+        
+
+
+
+
 
         # Main loop logic goes here
         print("Main loop running...")

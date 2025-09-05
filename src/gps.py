@@ -3,6 +3,8 @@ import time
 from src.DFRobot_GNSS import DFRobot_GNSS_UART, GPS_BeiDou_GLONASS
 import pynmea2
 from datetime import datetime, timezone
+import os
+import json
 
 class GNSS:
     def __init__(self, search_rate=2 ):
@@ -12,6 +14,17 @@ class GNSS:
         print(f"GNSS initialized with search rate: {self.search_rate} seconds")
 
     def boot(self):
+        """
+        Initializes and boots up the GNSS (Global Navigation Satellite System) module.
+
+        This function attempts to start communication with the GNSS module, enables its power,
+        sets the GNSS mode to use GPS, BeiDou, and GLONASS systems, and turns on the onboard RGB LED.
+        If the GNSS module is not detected, it prints an error message and returns False.
+        On successful initialization, it prints a confirmation message and returns True.
+
+        Returns:
+            bool: True if the GNSS module was initialized successfully, False otherwise.
+        """
         # Boot up GNSS module
         if not self.gnss.begin():  
             print("No Devices! GNSS module not detected.")  
@@ -35,6 +48,34 @@ class GNSS:
         pass
 
     def get_gnss_dict(self, test_mode=False):
+        """
+        Retrieves and parses GNSS (Global Navigation Satellite System) data, returning a compact dictionary
+        with key navigation and status fields.
+
+        The function processes raw GNSS data (either from the device or test data), extracts the latest
+        RMC (Recommended Minimum Specific GNSS Data) and GGA (Global Positioning System Fix Data) NMEA sentences,
+        and parses them to obtain relevant information such as position, time, speed, course, fix quality,
+        number of satellites, altitude, and horizontal dilution of precision.
+
+        Args:
+            test_mode (bool): If True, uses example NMEA sentences for testing instead of live GNSS data.
+
+        Returns:
+            dict: A dictionary containing the following keys:
+                - 'utc': UTC timestamp as epoch seconds (int), or None if unavailable.
+                - 'lat': Latitude in decimal degrees (rounded to 6 decimals), or None.
+                - 'lon': Longitude in decimal degrees (rounded to 6 decimals), or None.
+                - 'alt': Altitude in meters above mean sea level (rounded to 1 decimal), or None.
+                - 'sog': Speed over ground in knots (rounded to 2 decimals), or None.
+                - 'cog': Course over ground in degrees (rounded to 1 decimal), or None.
+                - 'fx': GNSS fix quality (int, 0=no fix), or None.
+                - 'hdop': Horizontal dilution of precision (rounded to 1 decimal), or None.
+                - 'nsat': Number of satellites used in fix (int), or None.
+
+        Notes:
+            - Only the latest valid RMC and GGA sentences are used for extraction.
+            - If parsing fails or data is missing, corresponding fields will be None.
+        """
 
         # Get raw GNSS data
         # 1) raw bytes (ints) -> text lines
@@ -120,17 +161,83 @@ class GNSS:
 
         # 6) assemble compact dict
         gnss_dict = {
-            'utc': utc,   # e.g. "2025-09-04T12:34:56Z"
-            'lat': lat,
-            'lon': lon,
+            'utc': utc,   # UTC timestamp as epoch seconds (int)
+            'lat': lat,  # decimal degrees (6 decimals is ~10cm)
+            'lon': lon,  # decimal degrees (6 decimals is ~10cm)
             'alt': alt,   # meters MSL (from GGA)
             'sog': sog_k,  # speed over ground in knots
             'cog': cog,      # course over ground in degrees
             'fx': fx,        # GGA fix quality (0=no fix)
-            'hdop': hdop,
-            'nsat': nsat
+            'hdop': hdop,   # horizontal dilution of precision (smaller is better, should be < 2.0)
+            'nsat': nsat    # number of satellites used in fix (needs to be >= 4 for 3D fix)
         }
         return gnss_dict
+    
+    def check_sats(self, gnss_dict):
+        """
+        Checks GNSS fix quality and number of satellites.
+
+        Args:
+            gnss_dict (dict): Dictionary from get_gnss_dict().
+
+        Returns:
+            tuple: (sat_available (bool), nsat (int or None))
+        """
+        fx = gnss_dict.get('fx', 0)         # Get fix quality from dictionary, default to 0 if missing
+        nsat = gnss_dict.get('nsat', None)  # Get number of satellites from dictionary, default to None if missing
+        sat_available = fx != 0             # sat_available set to True if fix quality is not zero (same as an if statement)
+        return sat_available, nsat          # Return tuple: (satellite available, number of satellites)
+    
+    def append_gnss_dict_send(self, gnss_dict_send, gnss_dict_current):
+        """
+        Append one GNSS fix (gnss_dict_current) to a batch dictionary (gnss_dict_send).
+
+        - gnss_dict_send: dictionary holding multiple fixes (possibly empty at start)
+        - gnss_dict_current: dictionary for the latest fix (one entry)
+
+        Returns: updated gnss_dict_send with appended entry.
+        """
+
+        # If this is the first fix, initialise the container
+        if not gnss_dict_send:
+            gnss_dict_send = {"f": []}
+
+        # Append the new fix
+        gnss_dict_send["f"].append(gnss_dict_current)
+
+        return gnss_dict_send
+    
+    def wait_for_send(self, last_gnss_time, search_rate):
+        """
+        Waits until the next GNSS search interval has elapsed.
+
+        Args:
+            last_gnss_time (float): Timestamp of the last GNSS reading.
+            search_rate (int): GNSS search rate in seconds.
+
+        Returns:
+            None
+        """
+        elapsed = time.time() - last_gnss_time # time since last GNSS reading
+        wait_time = max(0, search_rate - elapsed) # time to wait to maintain search rate
+        if wait_time > 0: # only sleep if we need to (if more than serach_rate seconds has passed, no need to wait)
+            time.sleep(wait_time) # wait the required time
+
+    def append_gnss_to_log(self, gnss_dict_current):
+        """
+        Append a GNSS dictionary entry to the transmit log file.
+
+        Args:
+            gnss_dict (dict): GNSS data dictionary to append.
+
+        Returns:
+            None
+        """
+        log_path = os.path.join(os.path.dirname(__file__), '../logs/gnss_log.txt')
+        with open(log_path, 'a') as log_file:
+            log_file.write(json.dumps(gnss_dict_current) + '\n')
+        # Append gnss_dict to a log file for later transmission
+        # Implement file handling and appending logic here
 
 class GNSS_lora(GNSS):
     def __init__(self, search_rate=1, lora_config=None):
@@ -139,4 +246,5 @@ class GNSS_lora(GNSS):
 
     def transmit_position(self):
         # Transmit position over LoRa
+        # use compact binary packet for the lora transmission
         pass
