@@ -5,6 +5,7 @@ import pynmea2
 from datetime import datetime, timezone
 import os
 import json
+from src.cellular import Cellular
 
 class GNSS:
     def __init__(self, search_rate=2 ):
@@ -238,6 +239,259 @@ class GNSS:
             log_file.write(json.dumps(gnss_dict_current) + '\n')
         # Append gnss_dict to a log file for later transmission
         # Implement file handling and appending logic here
+
+    def compress_gnss_dict(self, gnss_dict, scaled=True):
+        """
+        Convert GNSS dict with list of fixes into compact JSON.
+        
+        - gnss_dict: {'f':[ { 'utc':..., 'lat':..., ... }, {...} ]}
+        - scaled=True: store floats as scaled ints (lat/lon ×1e6, alt×10, sog×100, cog×10, hdop×10)
+        - scaled=False: keep original floats
+        
+        Returns: compact JSON string
+        """
+
+        compact_fixes = []
+        for fix in gnss_dict.get("f", []):
+            if scaled:
+                # scale to integers for compactness
+                utc   = int(fix.get("utc", 0))  # epoch seconds
+                lat   = int(round(fix.get("lat", 0) * 1e6))
+                lon   = int(round(fix.get("lon", 0) * 1e6))
+                alt   = int(round(fix.get("alt", 0) * 10))     # 0.1 m
+                sog   = int(round(fix.get("sog", 0) * 100))    # 0.01 knots
+                cog   = int(round(fix.get("cog", 0) * 10))     # 0.1 deg
+                fx    = int(fix.get("fx", 0))
+                hdop  = int(round(fix.get("hdop", 0) * 10))    # 0.1
+                nsat  = int(fix.get("nsat", 0))
+                compact_fixes.append([utc, lat, lon, alt, sog, cog, fx, hdop, nsat])
+            else:
+                # keep original floats
+                compact_fixes.append([
+                    fix.get("utc"),
+                    fix.get("lat"),
+                    fix.get("lon"),
+                    fix.get("alt"),
+                    fix.get("sog"),
+                    fix.get("cog"),
+                    fix.get("fx"),
+                    fix.get("hdop"),
+                    fix.get("nsat")
+                ])
+
+        # Wrap in top-level dict with a single short key
+        compact_dict = {"f": compact_fixes}
+
+        # Return compact dictionary
+        return compact_dict
+
+    def create_gnss_json(self, gnss_dict_send, unique_id, compact=False):
+        """
+        Create a GNSS JSON file with a unique ID.
+
+        Args:
+            gnss_dict_send (dict): Dictionary containing GNSS data to send.
+            unique_id (str): Unique identifier for the JSON file.
+
+        Returns:
+            str: Path to the created JSON file.
+        """
+
+        # Convert to compact format if requested
+        if compact:
+            gnss_dict_send = self.compress_gnss_dict(gnss_dict_send, scaled=False)
+        # Save to a JSON file
+        json_path = os.path.join(os.path.dirname(__file__), f'../logs/gnss_{unique_id}.json')
+        with open(json_path, 'w') as json_file:
+            json.dump(gnss_dict_send, json_file, separators=(',', ':')) # compact JSON
+        return json_path
+    
+    def decompress_gnss_json(self, json_path, scaled=True):
+        #THIS IS FOR TESTING PURPOSES and USE ON SERVER SIDE
+        """
+        Decompress a compact GNSS JSON string back into a list of fix dicts.
+
+        - json_str: string from compress_gnss_dict()
+        - scaled=True: assumes scaled ints (lat×1e5, etc.) and converts back to floats
+        - scaled=False: values are already floats, returned as-is
+
+        Returns: dict {"f": [ {full_fix}, ... ]}
+        """
+        # in the actual function, we would pass the json string directly
+        # here we read from a file for testing purposes
+        with open(json_path, 'r') as f:
+            json_str = f.read()
+        
+        compact = json.loads(json_str)
+        fixes = []
+
+        for entry in compact.get("f", []):
+            if scaled:
+                # entry is a list of 9 scaled integers
+                utc, lat, lon, alt, sog, cog, fx, hdop, nsat = entry
+                fix = {
+                    "utc": int(utc),                      # epoch seconds
+                    "lat": lat / 1e6,                     # degrees
+                    "lon": lon / 1e6,                     # degrees
+                    "alt": alt / 10.0,                    # meters
+                    "sog": sog / 100.0,                   # knots
+                    "cog": cog / 10.0,                    # degrees
+                    "fx": int(fx),                        # fix quality
+                    "hdop": hdop / 10.0,                  # dilution
+                    "nsat": int(nsat)                     # satellites
+                }
+            else:
+                # entry already has floats/ints in array order
+                utc, lat, lon, alt, sog, cog, fx, hdop, nsat = entry
+                fix = {
+                    "utc": int(utc),
+                    "lat": lat,
+                    "lon": lon,
+                    "alt": alt,
+                    "sog": sog,
+                    "cog": cog,
+                    "fx": int(fx),
+                    "hdop": hdop,
+                    "nsat": int(nsat)
+                }
+            fixes.append(fix)
+
+        return {"f": fixes}
+    
+    def json_file_exists(self, name, directory):
+        """
+        Check if a .json file with the given name exists in the specified directory.
+
+        Args:
+            name (str): The base name of the file (without .json extension).
+            directory (str): Path to the directory to search.
+
+        Returns:
+            bool: True if the file exists, False otherwise.
+        """
+        json_path = os.path.join(directory, f"{name}.json")
+        return os.path.isfile(json_path)
+    
+    def delete_json_file(self, name, directory):
+        """
+        Delete a .json file with the given name from the specified directory.
+
+        Args:
+            name (str): The base name of the file (without .json extension).
+            directory (str): Path to the directory.
+
+        Returns:
+            bool: True if the file was deleted, False if it did not exist.
+        """
+        json_path = os.path.join(directory, f"{name}.json")
+        if os.path.isfile(json_path):
+            os.remove(json_path)
+            return True
+        return False
+    
+    def add_to_transmit_backlog(self, transmit_backlog, current_utc_id):
+        """
+        Check if current_utc_id is in transmit_backlog; if not, add it to the end.
+        
+        Args:
+            transmit_backlog (list): List of UTC IDs (strings).
+            current_utc_id (int): The UTC ID to check/add.
+        
+        Returns:
+            list: Updated transmit_backlog list.
+        """
+        if current_utc_id not in transmit_backlog:
+            transmit_backlog.append(current_utc_id)
+        return transmit_backlog
+
+    def remove_from_transmit_backlog(self, transmit_backlog, sent_utc_id):
+        """
+        Remove sent_utc_id from the transmit_backlog list and delete the corresponding JSON file from the logs directory.
+
+        Args:
+            transmit_backlog (list): List of UTC IDs (strings or ints).
+            sent_utc_id (int or str): The UTC ID to remove and delete.
+
+        Returns:
+            list: Updated transmit_backlog list.
+        """
+        # Remove the sent_utc_id from the backlog if present
+        if sent_utc_id in transmit_backlog:
+            transmit_backlog.remove(sent_utc_id)
+            # Delete the corresponding JSON file from the logs directory
+            logs_dir = os.path.join(os.path.dirname(__file__), '../logs/')
+            self.delete_json_file(f"gnss_{sent_utc_id}", logs_dir)
+        return transmit_backlog
+
+    def check_enough_time_remaining(self, last_gnss_time, search_rate):
+        """
+        Check if there is enough time remaining in the current search interval.
+
+        Args:
+            start_time (float): Timestamp when the current GNSS search interval started.
+            search_rate (int): GNSS search rate in seconds.
+
+        Returns:
+            bool: True if enough time remains, False otherwise.
+        """
+        elapsed = time.time() - last_gnss_time # time since start of current search interval
+        return elapsed < 0.95*search_rate # True if we are still within the search rate interval
+
+    def send_gnss_json(self, transmit_backlog, current_utc_id, cell, last_gnss_time):
+        # Send the GNSS JSON file
+        # Implement transmission logic here
+
+        # check if the transmit_backlog is empty
+        if not transmit_backlog:
+            # check if there is a current position json file to send in the logs directory
+            # if there is send it and if not set transmit log to empt
+            if self.json_file_exists(f"gnss_{current_utc_id}", os.path.join(os.path.dirname(__file__), '../logs/')):
+                # print(f"Sending current position gnss_{current_utc_id}.json")
+                # send the current position json file and return True if successful 
+                success_transmission = cell.send_file(os.path.join(os.path.dirname(__file__), '../logs', f"gnss_{current_utc_id}.json"))              
+                
+                # if successful, delete the file and return reset the gnss counter and transmit_backlog_empty = True
+                if success_transmission:
+                    self.delete_json_file(f"gnss_{current_utc_id}", os.path.join(os.path.dirname(__file__), '../logs/'))
+                    print(f"Deleted gnss_{current_utc_id}.json after successful transmission.")
+                    # reset the gnss counter and transmit_backlog_empty = True
+                    return 0, True
+                else:
+                    # check if current_utc_id is in the transmit_backlog and add if not
+                    transmit_backlog = self.add_to_transmit_backlog(transmit_backlog, current_utc_id)
+                    # check if there is enough time remaining in the current search interval to
+                    # send another json file from the transmit_backlog
+                    if self.check_enough_time_remaining(self, last_gnss_time, self.search_rate):
+                        self.send_gnss_json(transmit_backlog, current_utc_id, cell)
+                return 0, True
+            else:
+                print("Log empty and no current json, Nothing to send.")
+                # reset the gnss counter and transmit_backlog_empty = True
+                return 0, True
+        else:
+            print("Backlog in transmit log... trying to send oldest entry.")
+            # check if current_utc_id is in the transmit_backlog and add if not
+            transmit_backlog = self.add_to_transmit_backlog(transmit_backlog, current_utc_id)
+            # get the oldest entry in the transmit_backlog
+            oldest_utc_id = transmit_backlog[0]
+            # check if the json file exists in the logs directory
+            if self.json_file_exists(f"gnss_{oldest_utc_id}", os.path.join(os.path.dirname(__file__), '../logs/')):
+                # print(f"Sending backlog gnss_{oldest_utc_id}.json")
+                # send the oldest entry in the transmit_backlog and return True if successful
+                success_transmission = cell.send_file(os.path.join(os.path.dirname(__file__), '../logs', f"gnss_{oldest_utc_id}.json"))
+                
+                # if successful, remove the entry from the transmit_backlog and delete the file
+                if success_transmission:
+                    transmit_backlog = self.remove_from_transmit_backlog(transmit_backlog, oldest_utc_id)
+            
+            # check if there is enough time remaining in the current search interval to
+            # send another json file from the transmit_backlog
+            if self.check_enough_time_remaining(self, last_gnss_time, self.search_rate):
+                self.send_gnss_json(transmit_backlog, current_utc_id, cell)
+
+            return 0, True
+
+
 
 class GNSS_lora(GNSS):
     def __init__(self, search_rate=1, lora_config=None):
