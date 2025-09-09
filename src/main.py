@@ -38,9 +38,9 @@ def main():
     last_gnss_time = 0
     sat_available = False
     gnss_send_count = 0
-    transmit_backlog_empty = True
+    transmit_backlog_empty = False#True
     gnss_dict_send = {}
-    transmit_backlog = []
+    # transmit_backlog = []
     
 
     # initialize GNSS
@@ -107,8 +107,11 @@ def main():
                 gnss.create_gnss_json(gnss_dict_send, unique_id=current_utc_id, compact=SEND_COMPACT)
                     # test = gnss.decompress_gnss_json("/home/matthew/Desktop/Master_Dev/Enduro_Tracker_RPi/logs/gnss_1756813036_test_compressed_scaled.json") # for testing purposes
                 
-                # send the data, reset the gnss counter and transmit_backlog_empty = True
-                gnss_send_count, transmit_backlog_empty = gnss.send_gnss_json(transmit_backlog, current_utc_id, cell, last_gnss_time) 
+                # send the data and transmit_backlog_empty = True
+                transmit_backlog_empty = gnss.send_gnss_json(current_utc_id, cell, last_gnss_time) 
+
+                # reset the gnss counter
+                gnss_send_count = 0
 
                 # wait until the next GNSS search interval has elapsed
                 gnss.wait_for_send(last_gnss_time, GNSS_SEARCH_RATE)
@@ -120,7 +123,31 @@ def main():
                 gnss.wait_for_send(last_gnss_time, GNSS_SEARCH_RATE)
                 continue  # Breaks out of the current iteration of the loop and starts the next iteration (get next GNSS reading)
         else:
-            pass
+            # the transmit backlog is not empty, so we need to try send that inbeteween the GNSS readings
+            # first check if we have reached the batch size to send
+            if gnss_send_count >= (GNSS_SEND_BATCH_SIZE - 1): # -1 because we start counting from 0
+                # reached the batch size
+                # create the .json file with unique ID and send
+                gnss.create_gnss_json(gnss_dict_send, unique_id=current_utc_id, compact=SEND_COMPACT)
+                    # test = gnss.decompress_gnss_json("/home/matthew/Desktop/Master_Dev/Enduro_Tracker_RPi/logs/gnss_1756813036_test_compressed_scaled.json") # for testing purposes
+                
+                # send the data and transmit_backlog_empty = True
+                transmit_backlog_empty = gnss.send_gnss_json(current_utc_id, cell, last_gnss_time)
+
+                # reset the gnss counter
+                gnss_send_count = 0
+
+                # wait until the next GNSS search interval has elapsed
+                gnss.wait_for_send(last_gnss_time, GNSS_SEARCH_RATE)
+                continue  # Breaks out of the current iteration of the loop and starts the next iteration (get next GNSS reading)
+            else:
+                # because we will try send the current position and the backlog between the GNSS readings
+                transmit_backlog_empty = gnss.send_current_position(cell, gnss_dict_current, last_gnss_time, compact=SEND_COMPACT)
+                
+                # increment gnss_send_count and wait until the next GNSS search interval has elapsed
+                gnss_send_count += 1
+                gnss.wait_for_send(last_gnss_time, GNSS_SEARCH_RATE)
+                continue  # Breaks out of the current iteration of the loop and starts the next iteration (get next GNSS reading)
         
 
 

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import os
 import json
 from src.cellular import Cellular
+import random # for test mode
 
 class GNSS:
     def __init__(self, search_rate=2 ):
@@ -13,6 +14,10 @@ class GNSS:
         # Initialize GNSS in UART mode at 9600 baud  
         #self.gnss = DFRobot_GNSS_UART(9600)
         print(f"GNSS initialized with search rate: {self.search_rate} seconds")
+        self.transmit_backlog = [1757412506, 1757412176, 1757410010, 1757409364]#[]  # Initialize transmit backlog
+        self.tmp_transmit_backlog_empty = False # Temporary variable to track if backlog is empty after sending
+        # TEST
+        self.test_count = 0
 
     def boot(self):
         """
@@ -33,6 +38,16 @@ class GNSS:
         self.gnss.enable_power()  
         self.gnss.set_gnss(GPS_BeiDou_GLONASS)  
         self.gnss.rgb_on()   # turn on the onboard RGB LED (it may already be on by default)  
+
+        # Check for backlog.txt in the logs directory and populate transmit_backlog if it exists
+        backlog_path = os.path.join(os.path.dirname(__file__), '../logs/backlog.txt')
+        if os.path.isfile(backlog_path):
+            with open(backlog_path, 'r') as f:
+                try:
+                    self.transmit_backlog = json.load(f)
+                except Exception:
+                    self.transmit_backlog = []
+
         print("GNSS module initialized successfully.")  
         return True
 
@@ -118,9 +133,13 @@ class GNSS:
             if datestamp and timestamp:
                 dt = datetime.combine(datestamp, timestamp).replace(tzinfo=timezone.utc) # dt = datetime.combine(rmc.datestamp, rmc.timestamp).replace(tzinfo=timezone.utc)
                 utc = int(dt.timestamp())   # epoch seconds (int)
+                if test_mode:
+                    utc = int(time.time())  # override with current time in test mode
             # positions (float degrees)
             lat = getattr(rmc, 'latitude', None)
             lon = getattr(rmc, 'longitude', None)
+            if test_mode:
+                lat = lat + (random.randint(0, 100) / 1_000_000) # add small random offset for testing
             # speed/course (may be blank)
             try:
                 sog_k = float(getattr(rmc, 'spd_over_grnd', 0) or 0.0)# float(rmc.spd_over_grnd) if rmc.spd_over_grnd else None
@@ -389,7 +408,7 @@ class GNSS:
             return True
         return False
     
-    def add_to_transmit_backlog(self, transmit_backlog, current_utc_id):
+    def add_to_transmit_backlog(self, current_utc_id):
         """
         Check if current_utc_id is in transmit_backlog; if not, add it to the end.
         
@@ -400,11 +419,11 @@ class GNSS:
         Returns:
             list: Updated transmit_backlog list.
         """
-        if current_utc_id not in transmit_backlog:
-            transmit_backlog.append(current_utc_id)
-        return transmit_backlog
+        if current_utc_id not in self.transmit_backlog:
+            self.transmit_backlog.append(current_utc_id)
 
-    def remove_from_transmit_backlog(self, transmit_backlog, sent_utc_id):
+
+    def remove_from_transmit_backlog(self, sent_utc_id):
         """
         Remove sent_utc_id from the transmit_backlog list and delete the corresponding JSON file from the logs directory.
 
@@ -416,12 +435,11 @@ class GNSS:
             list: Updated transmit_backlog list.
         """
         # Remove the sent_utc_id from the backlog if present
-        if sent_utc_id in transmit_backlog:
-            transmit_backlog.remove(sent_utc_id)
+        if sent_utc_id in self.transmit_backlog:
+            self.transmit_backlog.remove(sent_utc_id)
             # Delete the corresponding JSON file from the logs directory
             logs_dir = os.path.join(os.path.dirname(__file__), '../logs/')
             self.delete_json_file(f"gnss_{sent_utc_id}", logs_dir)
-        return transmit_backlog
 
     def check_enough_time_remaining(self, last_gnss_time, search_rate):
         """
@@ -436,60 +454,211 @@ class GNSS:
         """
         elapsed = time.time() - last_gnss_time # time since start of current search interval
         return elapsed < 0.95*search_rate # True if we are still within the search rate interval
+    
+    def update_backlog_file(self, transmit_backlog):
+        """
+        Persist the current transmit_backlog to logs/backlog.txt (overwrite existing).
 
-    def send_gnss_json(self, transmit_backlog, current_utc_id, cell, last_gnss_time):
+        Args:
+            transmit_backlog (list): List of UTC IDs representing GNSS JSON files that failed to transmit.
+
+        Returns:
+            None
+        """
+        # Persist the current transmit_backlog to logs/backlog.txt (overwrite existing)
+        try:
+            backlog_path = os.path.join(os.path.dirname(__file__), '../logs/backlog.txt')
+            # Ensure logs directory exists
+            os.makedirs(os.path.dirname(backlog_path), exist_ok=True)
+            with open(backlog_path, 'w') as f:
+                json.dump(transmit_backlog, f)
+        except Exception as e:
+            print(f"Failed to write backlog.txt: {e}")
+
+    def send_gnss_json(self, current_utc_id, cell, last_gnss_time):
+        """
+        Transmit GNSS JSON files, handling the current file and any backlog.
+
+        Behavior
+        - When no backlog exists, attempt to send the current file `gnss_{current_utc_id}.json`. On
+          success, delete the file. On failure, ensure `current_utc_id` is appended to
+          `transmit_backlog`.
+        - When a backlog exists, attempt to send the oldest entry first. On success, delete the file
+          and remove its ID from `transmit_backlog`.
+        - If time remains in the current GNSS search interval (based on `last_gnss_time` and
+          `self.search_rate`), the method may attempt additional sends (including recursively) until
+          time runs out or the backlog is empty.
+
+        Parameters
+        ----------
+        current_utc_id : int | str
+            UTC ID for the most recent GNSS JSON file.
+        cell : object
+            Transport with a `send_file(path) -> bool` method used to transmit files.
+        last_gnss_time : float
+            Timestamp (seconds since epoch) of the last GNSS reading; used to respect the search interval.
+
+        Returns
+        -------
+        bool
+            True if the backlog is empty after processing; False otherwise.
+
+        Side Effects
+        ------------
+        - Deletes successfully transmitted JSON files from `../logs/`.
+        - Mutates `transmit_backlog` by adding failed current IDs and removing successfully sent oldest IDs.
+        - May perform additional send attempts while time remains in the interval.
+        """
         # Send the GNSS JSON file
         # Implement transmission logic here
 
         # check if the transmit_backlog is empty
-        if not transmit_backlog:
+        if not self.transmit_backlog: # backlog is empty
             # check if there is a current position json file to send in the logs directory
-            # if there is send it and if not set transmit log to empt
+            # if there is send it and if not set transmit log to empty and return
+
             if self.json_file_exists(f"gnss_{current_utc_id}", os.path.join(os.path.dirname(__file__), '../logs/')):
                 # print(f"Sending current position gnss_{current_utc_id}.json")
                 # send the current position json file and return True if successful 
                 success_transmission = cell.send_file(os.path.join(os.path.dirname(__file__), '../logs', f"gnss_{current_utc_id}.json"))              
                 
-                # if successful, delete the file and return reset the gnss counter and transmit_backlog_empty = True
+                # TEST scenario 3 
+                success_transmission = False
+                self.test_count += 1
+                if self.test_count >= 30:
+                    success_transmission = True
+                    self.test_count = 0
+
+                # if successful, delete the file and return transmit_backlog_empty = True
                 if success_transmission:
                     self.delete_json_file(f"gnss_{current_utc_id}", os.path.join(os.path.dirname(__file__), '../logs/'))
                     print(f"Deleted gnss_{current_utc_id}.json after successful transmission.")
-                    # reset the gnss counter and transmit_backlog_empty = True
-                    return 0, True
+                    # transmit_backlog_empty = True
+                    # return True
                 else:
                     # check if current_utc_id is in the transmit_backlog and add if not
-                    transmit_backlog = self.add_to_transmit_backlog(transmit_backlog, current_utc_id)
+                    self.add_to_transmit_backlog(current_utc_id)
                     # check if there is enough time remaining in the current search interval to
                     # send another json file from the transmit_backlog
-                    if self.check_enough_time_remaining(self, last_gnss_time, self.search_rate):
-                        self.send_gnss_json(transmit_backlog, current_utc_id, cell)
-                return 0, True
+                    if self.check_enough_time_remaining(last_gnss_time, self.search_rate):
+                        self.send_gnss_json(current_utc_id, cell, last_gnss_time)
+                    
+                    # TEST scenario 3 (there is enough time)
+                    # self.send_gnss_json(current_utc_id, cell, last_gnss_time)
+
+                    # transmit_backlog is not empty
+                    self.update_backlog_file(self.transmit_backlog)
+                    # return False
+                
             else:
                 print("Log empty and no current json, Nothing to send.")
-                # reset the gnss counter and transmit_backlog_empty = True
-                return 0, True
-        else:
+                # reset and transmit_backlog_empty = True
+                # return True
+            
+        else: # backlog is not empty
             print("Backlog in transmit log... trying to send oldest entry.")
             # check if current_utc_id is in the transmit_backlog and add if not
-            transmit_backlog = self.add_to_transmit_backlog(transmit_backlog, current_utc_id)
+            self.add_to_transmit_backlog(current_utc_id)
             # get the oldest entry in the transmit_backlog
-            oldest_utc_id = transmit_backlog[0]
+            oldest_utc_id = self.transmit_backlog[0]
             # check if the json file exists in the logs directory
             if self.json_file_exists(f"gnss_{oldest_utc_id}", os.path.join(os.path.dirname(__file__), '../logs/')):
                 # print(f"Sending backlog gnss_{oldest_utc_id}.json")
                 # send the oldest entry in the transmit_backlog and return True if successful
                 success_transmission = cell.send_file(os.path.join(os.path.dirname(__file__), '../logs', f"gnss_{oldest_utc_id}.json"))
+
+                # TEST scenario 3 
+                success_transmission = False
+                self.test_count += 1
+                if self.test_count >= 30:
+                    success_transmission = True
+                    self.test_count = 0
                 
                 # if successful, remove the entry from the transmit_backlog and delete the file
                 if success_transmission:
-                    transmit_backlog = self.remove_from_transmit_backlog(transmit_backlog, oldest_utc_id)
+                    self.remove_from_transmit_backlog(oldest_utc_id)
             
             # check if there is enough time remaining in the current search interval to
             # send another json file from the transmit_backlog
-            if self.check_enough_time_remaining(self, last_gnss_time, self.search_rate):
-                self.send_gnss_json(transmit_backlog, current_utc_id, cell)
+            if self.check_enough_time_remaining(last_gnss_time, self.search_rate):
+                self.send_gnss_json(current_utc_id, cell, last_gnss_time)
 
-            return 0, True
+        if self.transmit_backlog:
+            # transmit_backlog is not empty
+            self.update_backlog_file(self.transmit_backlog)
+            return False
+        else:
+            # transmit_backlog is empty
+            return True
+        
+    def send_current_position(self, cell, gnss_dict_current, last_gnss_time, compact = False):
+        """
+        Send the current position as a temporary JSON file.
+
+        - Create a temporary JSON in `../logs/` from `gnss_dict_current`.
+        - Attempt to send it via `cell.send_file()`.
+        - On success: delete the temp file and try to send any backlog using `send_gnss_json`.
+        - On failure: briefly retry if time permits; otherwise delete the temp file.
+
+        Returns:
+            bool: False if the backlog is not empty or failed to send current (which means it reamains not empty), otherwise True.
+        """
+        tmp_transmit_backlog_empty = False # assume backlog is has contents unless we find otherwise (otherwise we would not be in send current position)
+
+        # Paths and temp filename (avoid clashing with batch files like gnss_{id}.json)
+        logs_dir = os.path.join(os.path.dirname(__file__), '../logs')
+        os.makedirs(logs_dir, exist_ok=True)
+        temp_name = f"tmp_gnss.json"
+        temp_path = os.path.join(logs_dir, temp_name)
+
+        # Convert to same format as the send dict and convert to compact format if required
+        gnss_dict_current = {"f": [gnss_dict_current]}
+        if compact:
+            gnss_dict_current = self.compress_gnss_dict(gnss_dict_current, scaled=False)
+
+        # create a temp .json file in the log from the current gnss dict
+        try:
+            with open(temp_path, 'w') as f:
+                json.dump(gnss_dict_current, f, separators=(',', ':')) # compact json
+        except Exception as e:
+            print(f"Failed to write temp current position file: {e}")
+            return False
+
+        # attempt to send it using cell.send_file()
+        def _try_send(path):
+            try:
+                return cell.send_file(path)
+            except Exception as e:
+                print(f"Error sending temp current position file: {e}")
+                return False
+
+        success = _try_send(temp_path)
+
+        #TEST scenario 5
+        success = False
+
+        if success:
+            # if success then delete the file and attempt to send any backlog (use send_gnss_json)
+            try:
+                os.remove(temp_path)
+            except Exception as e:
+                print(f"Failed to delete temp file after send: {e}")
+
+            try:
+                # Attempt to send any backlog; use current time as the reference
+                tmp_transmit_backlog_empty = self.send_gnss_json(self.transmit_backlog[0], cell, last_gnss_time)
+            except Exception as e:
+                # Don't fail the current send result if backlog processing errors
+                print(f"Backlog send attempt failed: {e}")
+
+            return tmp_transmit_backlog_empty
+
+        # if unsuccessful then check if enough time to try again 
+        if self.check_enough_time_remaining(last_gnss_time, self.search_rate):
+            tmp_transmit_backlog_empty = self.send_current_position(cell, gnss_dict_current, last_gnss_time, compact=compact)
+            return tmp_transmit_backlog_empty
+        
+        return tmp_transmit_backlog_empty
 
 
 
@@ -498,7 +667,7 @@ class GNSS_lora(GNSS):
         super().__init__(search_rate)
         self.lora_config = lora_config
 
-    def transmit_position(self):
+    def transmit_current_position(self):
         # Transmit position over LoRa
         # use compact binary packet for the lora transmission
         pass

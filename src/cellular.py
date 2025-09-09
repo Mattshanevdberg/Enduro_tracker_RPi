@@ -37,6 +37,7 @@ class Cellular:
         Returns:
             bool: True if the data was sent successfully, False otherwise.
         """
+        # test sending the file by reading it and printing its contents
         with open(json_path, 'r') as f:
             data = f.read()
         print(f"Sending data: {data}")
