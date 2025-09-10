@@ -38,10 +38,8 @@ def main():
     last_gnss_time = 0
     sat_available = False
     gnss_send_count = 0
-    transmit_backlog_empty = False#True
+    transmit_backlog_empty = True
     gnss_dict_send = {}
-    # transmit_backlog = []
-    
 
     # initialize GNSS
     try:

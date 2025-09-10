@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 import os
 import json
 from src.cellular import Cellular
-import random # for test mode
+# TEST imports 
+import random # for TEST mode
 
 class GNSS:
     def __init__(self, search_rate=2 ):
@@ -14,7 +15,7 @@ class GNSS:
         # Initialize GNSS in UART mode at 9600 baud  
         #self.gnss = DFRobot_GNSS_UART(9600)
         print(f"GNSS initialized with search rate: {self.search_rate} seconds")
-        self.transmit_backlog = [1757412506, 1757412176, 1757410010, 1757409364]#[]  # Initialize transmit backlog
+        self.transmit_backlog = []#[]  # Initialize transmit backlog
         self.tmp_transmit_backlog_empty = False # Temporary variable to track if backlog is empty after sending
         # TEST
         self.test_count = 0
@@ -95,6 +96,7 @@ class GNSS:
 
         # Get raw GNSS data
         # 1) raw bytes (ints) -> text lines
+        # TEST
         if test_mode:
             # Example NMEA sentences for testing
             all_gnss_data = [36, 71, 78, 71, 71, 65, 44, 49, 49, 51, 55, 49, 53, 46, 48, 48, 48, 44, 51, 52, 48, 56, 46, 51, 54, 53, 53, 51, 44, 83, 44, 48, 49, 56, 50, 51, 46, 53, 54, 54, 50, 48, 44, 69, 44, 49, 44, 49, 56, 44, 48, 46, 55, 44, 55, 56, 46, 55, 44, 77, 44, 51, 48, 46, 56, 44, 77, 44, 44, 42, 54, 52, 13, 10, 36, 71, 78, 71, 76, 76, 44, 51, 52, 48, 56, 46, 51, 54, 53, 53, 51, 44, 83, 44, 48, 49, 56, 50, 51, 46, 53, 54, 54, 50, 48, 44, 69, 44, 49, 49, 51, 55, 49, 53, 46, 48, 48, 48, 44, 65, 44, 65, 42, 53, 67, 13, 10, 36, 71, 78, 71, 83, 65, 44, 65, 44, 51, 44, 48, 49, 44, 48, 50, 44, 48, 51, 44, 48, 55, 44, 48, 56, 44, 49, 52, 44, 49, 55, 44, 49, 57, 44, 50, 50, 44, 51, 48, 44, 44, 44, 49, 46, 53, 44, 48, 46, 55, 44, 49, 46, 51, 44, 49, 42, 51, 55, 13, 10, 36, 71, 78, 71, 83, 65, 44, 65, 44, 51, 44, 48, 56, 44, 50, 57, 44, 51, 48, 44, 51, 54, 44, 52, 53, 44, 44, 44, 44, 44, 44, 44, 44, 49, 46, 53, 44, 48, 46, 55, 44, 49, 46, 51, 44, 52, 42, 51, 49, 13, 10, 36, 71, 78, 71, 83, 65, 44, 65, 44, 51, 44, 55, 56, 44, 56, 48, 44, 55, 57, 44, 44, 44, 44, 44, 44, 44, 44, 44, 44, 49, 46, 53, 44, 48, 46, 55, 44, 49, 46, 51, 44, 50, 42, 51, 65, 13, 10, 36, 71, 80, 71, 83, 86, 44, 51, 44, 49, 44, 49, 50, 44, 48, 49, 44, 54, 53, 44, 49, 48, 55, 44, 50, 49, 44, 48, 50, 44, 51, 56, 44, 49, 51, 53, 44, 50, 49, 44, 48, 51, 44, 50, 48, 44, 48, 53, 53, 44, 51, 53, 44, 48, 54, 44, 48, 55, 44, 51, 51, 48, 44, 44, 48, 42, 54, 56, 13, 10, 36, 71, 80, 71, 83, 86, 44, 51, 44, 50, 44, 49, 50, 44, 48, 55, 44, 51, 50, 44, 51, 53, 52, 44, 50, 50, 44, 48, 56, 44, 49, 52, 44, 49, 49, 51, 44, 50, 56, 44, 49, 51, 44, 48, 54, 44, 50, 53, 54, 44, 44, 49, 52, 44, 54, 48, 44, 50, 49, 52, 44, 50, 55, 44, 48, 42, 54, 51, 13, 10, 36, 71, 80, 71, 83, 86, 44, 51, 44, 51, 44, 49, 50, 44, 49, 55, 44, 52, 53, 44, 50, 54, 48, 44, 50, 52, 44, 49, 57, 44, 50, 54, 44, 50, 55, 52, 44, 50, 55, 44, 50, 50, 44, 52, 48, 44, 50, 50, 52, 44, 50, 54, 44, 51, 48, 44, 53, 49, 44, 51, 49, 54, 44, 50, 54, 44, 48, 42, 54, 56, 13, 10, 36, 66, 68, 71, 83, 86, 44, 50, 44, 49, 44, 48, 54, 44, 48, 53, 44, 44, 44, 51, 49, 44, 48, 56, 44, 50, 54, 44, 49, 49, 48, 44, 50, 53, 44, 50, 57, 44, 55, 57, 44, 50, 51, 50, 44, 49, 54, 44, 51, 48, 44, 51, 55, 44, 49, 51, 53, 44, 50, 52, 44, 48, 42, 52, 65, 13, 10, 36, 66, 68, 71, 83, 86, 44, 50, 44, 50, 44, 48, 54, 44, 51, 54, 44, 53, 54, 44, 48, 50, 52, 44, 51, 52, 44, 52, 53, 44, 54, 55, 44, 50, 52, 49, 44, 50, 54, 44, 48, 42, 55, 54, 13, 10, 36, 71, 76, 71, 83, 86, 44, 50, 44, 49, 44, 48, 54, 44, 55, 56, 44, 50, 49, 44, 48, 52, 48, 44, 51, 52, 44, 56, 48, 44, 52, 53, 44, 50, 48, 55, 44, 50, 49, 44, 55, 57, 44, 55, 51, 44, 48, 54, 53, 44, 49, 57, 44, 56, 56, 44, 48, 53, 44, 49, 52, 52, 44, 44, 48, 42, 55, 57, 13, 10, 36, 71, 76, 71, 83, 86, 44, 50, 44, 50, 44, 48, 54, 44, 56, 49, 44, 54, 56, 44, 49, 54, 52, 44, 44, 54, 56, 44, 50, 50, 44, 50, 57, 48, 44, 44, 48, 42, 55, 69, 13, 10, 36, 71, 78, 82, 77, 67, 44, 49, 49, 51, 55, 49, 54, 46, 48, 48, 48, 44, 65, 44, 51, 52, 48, 56, 46, 51, 54, 53, 53, 51, 44, 83, 44, 48, 49, 56, 50, 51, 46, 53, 54, 54, 50, 49, 44, 69, 44, 48, 46, 48, 48, 44, 53, 55, 46, 52, 51, 44, 48, 50, 48, 57, 50, 53, 44, 44, 44, 65, 44, 86, 42, 50, 65, 13, 10, 36, 71, 78, 86, 84, 71, 44, 53, 55, 46, 52, 51, 44, 84, 44, 44, 77, 44, 48, 46, 48, 48, 44, 78, 44, 48, 46, 48, 48, 44, 75, 44, 65, 42, 49, 54, 13, 10, 36, 71, 78, 90, 68, 65, 44, 49, 49, 51, 55, 49, 54, 46, 48, 48, 48, 44, 48, 50, 44, 48, 57, 44, 50, 48, 50, 53, 44, 48, 48, 44, 48, 48, 42, 52, 53, 13, 10, 36, 71, 80, 84, 88, 84, 44, 48, 49, 44, 48, 49, 44, 48, 49, 44, 65, 78, 84, 69, 78, 78, 65, 32, 79, 75, 42, 51, 53, 13, 10]
@@ -133,12 +135,12 @@ class GNSS:
             if datestamp and timestamp:
                 dt = datetime.combine(datestamp, timestamp).replace(tzinfo=timezone.utc) # dt = datetime.combine(rmc.datestamp, rmc.timestamp).replace(tzinfo=timezone.utc)
                 utc = int(dt.timestamp())   # epoch seconds (int)
-                if test_mode:
+                if test_mode: #TEST
                     utc = int(time.time())  # override with current time in test mode
             # positions (float degrees)
             lat = getattr(rmc, 'latitude', None)
             lon = getattr(rmc, 'longitude', None)
-            if test_mode:
+            if test_mode: #TEST
                 lat = lat + (random.randint(0, 100) / 1_000_000) # add small random offset for testing
             # speed/course (may be blank)
             try:
@@ -521,13 +523,6 @@ class GNSS:
                 # print(f"Sending current position gnss_{current_utc_id}.json")
                 # send the current position json file and return True if successful 
                 success_transmission = cell.send_file(os.path.join(os.path.dirname(__file__), '../logs', f"gnss_{current_utc_id}.json"))              
-                
-                # TEST scenario 3 
-                success_transmission = False
-                self.test_count += 1
-                if self.test_count >= 30:
-                    success_transmission = True
-                    self.test_count = 0
 
                 # if successful, delete the file and return transmit_backlog_empty = True
                 if success_transmission:
@@ -538,13 +533,17 @@ class GNSS:
                 else:
                     # check if current_utc_id is in the transmit_backlog and add if not
                     self.add_to_transmit_backlog(current_utc_id)
+                    # TEST s2:
+                    print(f"Failed to send gnss_{current_utc_id}.json, added to backlog.")
+                    print(f"transmit_log: {self.transmit_backlog}")
+                    #
                     # check if there is enough time remaining in the current search interval to
                     # send another json file from the transmit_backlog
                     if self.check_enough_time_remaining(last_gnss_time, self.search_rate):
+                        #TEST s2:
+                        print("enough time to try again.")
+                        #
                         self.send_gnss_json(current_utc_id, cell, last_gnss_time)
-                    
-                    # TEST scenario 3 (there is enough time)
-                    # self.send_gnss_json(current_utc_id, cell, last_gnss_time)
 
                     # transmit_backlog is not empty
                     self.update_backlog_file(self.transmit_backlog)
@@ -566,13 +565,6 @@ class GNSS:
                 # print(f"Sending backlog gnss_{oldest_utc_id}.json")
                 # send the oldest entry in the transmit_backlog and return True if successful
                 success_transmission = cell.send_file(os.path.join(os.path.dirname(__file__), '../logs', f"gnss_{oldest_utc_id}.json"))
-
-                # TEST scenario 3 
-                success_transmission = False
-                self.test_count += 1
-                if self.test_count >= 30:
-                    success_transmission = True
-                    self.test_count = 0
                 
                 # if successful, remove the entry from the transmit_backlog and delete the file
                 if success_transmission:
@@ -589,6 +581,10 @@ class GNSS:
             return False
         else:
             # transmit_backlog is empty
+            self.update_backlog_file(self.transmit_backlog)
+            # TEST s2:
+            print(F"Transmit backlog {self.transmit_backlog}")
+            #
             return True
         
     def send_current_position(self, cell, gnss_dict_current, last_gnss_time, compact = False):
@@ -632,31 +628,35 @@ class GNSS:
                 print(f"Error sending temp current position file: {e}")
                 return False
 
-        success = _try_send(temp_path)
+        # create a loop to try send file while there is enough time remaining
+        enough_time = self.check_enough_time_remaining(last_gnss_time, self.search_rate)
+        while enough_time == True:
 
-        #TEST scenario 5
-        success = False
+            # try to send current location temp file
+            success = _try_send(temp_path)
 
-        if success:
-            # if success then delete the file and attempt to send any backlog (use send_gnss_json)
-            try:
-                os.remove(temp_path)
-            except Exception as e:
-                print(f"Failed to delete temp file after send: {e}")
+            if success:
+                # if success then delete the file and attempt to send any backlog (use send_gnss_json)
+                try:
+                    os.remove(temp_path)
+                except Exception as e:
+                    print(f"Failed to delete temp file after send: {e}")
 
-            try:
-                # Attempt to send any backlog; use current time as the reference
-                tmp_transmit_backlog_empty = self.send_gnss_json(self.transmit_backlog[0], cell, last_gnss_time)
-            except Exception as e:
-                # Don't fail the current send result if backlog processing errors
-                print(f"Backlog send attempt failed: {e}")
+                try:
+                    # Attempt to send any backlog; use current time as the reference
+                    tmp_transmit_backlog_empty = self.send_gnss_json(self.transmit_backlog[0], cell, last_gnss_time)
+                except Exception as e:
+                    # Don't fail the current send result if backlog processing errors
+                    print(f"Backlog send attempt failed: {e}")
 
-            return tmp_transmit_backlog_empty
+                return tmp_transmit_backlog_empty
+            
+            enough_time = self.check_enough_time_remaining(last_gnss_time, self.search_rate)
 
-        # if unsuccessful then check if enough time to try again 
-        if self.check_enough_time_remaining(last_gnss_time, self.search_rate):
-            tmp_transmit_backlog_empty = self.send_current_position(cell, gnss_dict_current, last_gnss_time, compact=compact)
-            return tmp_transmit_backlog_empty
+            # # if unsuccessful then check if enough time to try again 
+            # if self.check_enough_time_remaining(last_gnss_time, self.search_rate):
+            #     tmp_transmit_backlog_empty = self.send_current_position(cell, gnss_dict_current, last_gnss_time, compact=compact)
+            #     return tmp_transmit_backlog_empty
         
         return tmp_transmit_backlog_empty
 

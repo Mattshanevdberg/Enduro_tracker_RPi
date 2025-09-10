@@ -10,6 +10,10 @@ class Cellular:
         #self.gnss = DFRobot_GNSS_UART(9600)
         print(f"Cellular module initialized.")
 
+        # TEST For testing purposes
+        self.test_send_success = False
+        self.test_counter = 0
+
     def boot(self):
         """
         Initializes and boots up the GNSS (Global Navigation Satellite System) module.
@@ -37,14 +41,26 @@ class Cellular:
         Returns:
             bool: True if the data was sent successfully, False otherwise.
         """
-        # test sending the file by reading it and printing its contents
+        # TEST test sending the file by reading it and printing its contents
         with open(json_path, 'r') as f:
             data = f.read()
-        print(f"Sending data: {data}")
+        print(f"Attempting to send data: {data}")
+        # Simulate sending delay
+        time.sleep(0.5)
         # Implement actual sending logic here
 
         # return False if failed and true if successful
-        success = True # change this based on actual send result
-        if success:
-            return True
-        return False 
+        # TEST s1 always successful
+        #if self.test_counter >= 0:
+        # TEST s2 fail first 2 times then succeed
+        if self.test_counter >= 30:
+            self.test_send_success = True
+            print(f"Cell: send pass. On send attempt {self.test_counter}")
+        
+        if not self.test_send_success:
+            print(f"Cell: send fail. On send attempt {self.test_counter}")
+
+        #TEST
+        self.test_counter += 1
+
+        return self.test_send_success
