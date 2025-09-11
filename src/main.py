@@ -8,13 +8,21 @@ VSCODE_TEST = True # set to False when running on Raspberry Pi
 # regular imports
 import numpy as np
 import yaml
-import json
 import os
+import sys
+from pathlib import Path
 
 # Load configuration from JSON file
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), '../configs/config.yaml')
 with open(CONFIG_PATH, 'r') as f:
     config = yaml.safe_load(f)
+
+# send log outputs to a file
+# Make sure log directory exists
+Path("logs").mkdir(parents=True, exist_ok=True)
+# Redirect all prints to logs/output.txt
+sys.stdout = open("logs/output.txt", "a")  # "a" = append mode
+sys.stderr = sys.stdout                    # send errors there too
 
 # Import other modules (uncomment as needed)
 # from DFRobot_GNSS import *
@@ -68,6 +76,9 @@ def main():
         except Exception as e:
             print(f"Error during GNSS boot: {e}")
             return
+        
+    # TEST
+    gnss.boot()
 
     running = True
     while running:
@@ -96,17 +107,30 @@ def main():
         # get the current utc send id
         current_utc_id = gnss_dict_current['utc'] # get the UTC of the last fix in the current dict
 
+        # TEST
+        print(f"gnss_count: {gnss_send_count}")
+
         # check if there is a backlog of transmissions to send
         if transmit_backlog_empty:
             # if there is no backlog, check if we have reached the batch size to send
+            # TEST
+            print(f" enter backlog empty")
+
             if gnss_send_count >= (GNSS_SEND_BATCH_SIZE - 1): # -1 because we start counting from 0
                 # reached the batch size
+
+                # TEST
+                print(f"reached batch size")
+                #  
                 # create the .json file with unique ID and send
                 gnss.create_gnss_json(gnss_dict_send, unique_id=current_utc_id, compact=SEND_COMPACT)
                     # test = gnss.decompress_gnss_json("/home/matthew/Desktop/Master_Dev/Enduro_Tracker_RPi/logs/gnss_1756813036_test_compressed_scaled.json") # for testing purposes
                 
                 # send the data and transmit_backlog_empty = True
                 transmit_backlog_empty = gnss.send_gnss_json(current_utc_id, cell, last_gnss_time) 
+
+                # TEST
+                print(f"transmit_backlog_empty in main: {transmit_backlog_empty}")
 
                 # reset the gnss counter
                 gnss_send_count = 0
@@ -122,15 +146,25 @@ def main():
                 continue  # Breaks out of the current iteration of the loop and starts the next iteration (get next GNSS reading)
         else:
             # the transmit backlog is not empty, so we need to try send that inbeteween the GNSS readings
+
+            # TEST
+            print(f"enter backlog NOT empty")
+
             # first check if we have reached the batch size to send
             if gnss_send_count >= (GNSS_SEND_BATCH_SIZE - 1): # -1 because we start counting from 0
                 # reached the batch size
+                # TEST
+                print(f"reached batch size with backlog not empty")
+                #
                 # create the .json file with unique ID and send
                 gnss.create_gnss_json(gnss_dict_send, unique_id=current_utc_id, compact=SEND_COMPACT)
                     # test = gnss.decompress_gnss_json("/home/matthew/Desktop/Master_Dev/Enduro_Tracker_RPi/logs/gnss_1756813036_test_compressed_scaled.json") # for testing purposes
                 
                 # send the data and transmit_backlog_empty = True
                 transmit_backlog_empty = gnss.send_gnss_json(current_utc_id, cell, last_gnss_time)
+
+                # TEST
+                print(f"transmit_backlog_empty in main: {transmit_backlog_empty}")
 
                 # reset the gnss counter
                 gnss_send_count = 0
@@ -140,7 +174,13 @@ def main():
                 continue  # Breaks out of the current iteration of the loop and starts the next iteration (get next GNSS reading)
             else:
                 # because we will try send the current position and the backlog between the GNSS readings
+                #TEST 
+                print(f"try send current position with backlog not empty")
+
                 transmit_backlog_empty = gnss.send_current_position(cell, gnss_dict_current, last_gnss_time, compact=SEND_COMPACT)
+
+                # TEST
+                print(f"transmit_backlog_empty in main: {transmit_backlog_empty}")
                 
                 # increment gnss_send_count and wait until the next GNSS search interval has elapsed
                 gnss_send_count += 1

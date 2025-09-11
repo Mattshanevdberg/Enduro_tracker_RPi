@@ -32,13 +32,14 @@ class GNSS:
         Returns:
             bool: True if the GNSS module was initialized successfully, False otherwise.
         """
-        # Boot up GNSS module
-        if not self.gnss.begin():  
-            print("No Devices! GNSS module not detected.")  
-            return False
-        self.gnss.enable_power()  
-        self.gnss.set_gnss(GPS_BeiDou_GLONASS)  
-        self.gnss.rgb_on()   # turn on the onboard RGB LED (it may already be on by default)  
+        #TEST
+        # # Boot up GNSS module
+        # if not self.gnss.begin():  
+        #     print("No Devices! GNSS module not detected.")  
+        #     return False
+        # self.gnss.enable_power()  
+        # self.gnss.set_gnss(GPS_BeiDou_GLONASS)  
+        # self.gnss.rgb_on()   # turn on the onboard RGB LED (it may already be on by default)  
 
         # Check for backlog.txt in the logs directory and populate transmit_backlog if it exists
         backlog_path = os.path.join(os.path.dirname(__file__), '../logs/backlog.txt')
@@ -421,8 +422,11 @@ class GNSS:
         Returns:
             list: Updated transmit_backlog list.
         """
+        # check if current_utc_id is already in the backlog
         if current_utc_id not in self.transmit_backlog:
-            self.transmit_backlog.append(current_utc_id)
+            # check if the corresponding JSON file exists in the logs directory
+            if self.json_file_exists(f"gnss_{current_utc_id}", os.path.join(os.path.dirname(__file__), '../logs/')):
+                self.transmit_backlog.append(current_utc_id)
 
 
     def remove_from_transmit_backlog(self, sent_utc_id):
@@ -455,6 +459,10 @@ class GNSS:
             bool: True if enough time remains, False otherwise.
         """
         elapsed = time.time() - last_gnss_time # time since start of current search interval
+
+        #TEST
+        print(f"enough time remaining: {elapsed < 0.95*search_rate}")
+
         return elapsed < 0.95*search_rate # True if we are still within the search rate interval
     
     def update_backlog_file(self, transmit_backlog):
@@ -512,7 +520,8 @@ class GNSS:
         - May perform additional send attempts while time remains in the interval.
         """
         # Send the GNSS JSON file
-        # Implement transmission logic here
+        # TEST
+        print(f"entered into send_gnss_json with backlog: {self.transmit_backlog}")
 
         # check if the transmit_backlog is empty
         if not self.transmit_backlog: # backlog is empty
@@ -546,7 +555,7 @@ class GNSS:
                         self.send_gnss_json(current_utc_id, cell, last_gnss_time)
 
                     # transmit_backlog is not empty
-                    self.update_backlog_file(self.transmit_backlog)
+                    # self.update_backlog_file(self.transmit_backlog)
                     # return False
                 
             else:
@@ -569,6 +578,10 @@ class GNSS:
                 # if successful, remove the entry from the transmit_backlog and delete the file
                 if success_transmission:
                     self.remove_from_transmit_backlog(oldest_utc_id)
+            else:
+                # if the file does not exist, remove the entry from the transmit_backlog
+                print(f"File gnss_{oldest_utc_id}.json not found, removing from backlog.")
+                self.remove_from_transmit_backlog(oldest_utc_id)
             
             # check if there is enough time remaining in the current search interval to
             # send another json file from the transmit_backlog
@@ -599,6 +612,10 @@ class GNSS:
         Returns:
             bool: False if the backlog is not empty or failed to send current (which means it reamains not empty), otherwise True.
         """
+        #TEST
+        print("Entered send_current_position")
+        #
+
         tmp_transmit_backlog_empty = False # assume backlog is has contents unless we find otherwise (otherwise we would not be in send current position)
 
         # Paths and temp filename (avoid clashing with batch files like gnss_{id}.json)

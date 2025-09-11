@@ -1,5 +1,5 @@
 { "global": {
-    "GNSS_SEARCH_RATE": 2, # rate that we get GNSS readings in seconds, minimum 1
+    "GNSS_SEARCH_RATE": 1.5, # rate that we get GNSS readings in seconds, minimum 1
     "GNSS_SEND_BATCH_SIZE": 5, # number of GNSS readings to send in one batch
     "SEND_COMPACT": True, # whether to send compact JSON
     "TRANSMIT_MODE": "cellular", # Options: "lora", "cellular", "dual"

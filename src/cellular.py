@@ -52,13 +52,36 @@ class Cellular:
         # return False if failed and true if successful
         # TEST s1 always successful
         #if self.test_counter >= 0:
-        # TEST s2 fail first 2 times then succeed
-        if self.test_counter >= 30:
+        # # TEST s2 fail first 1 times then succeed
+        # if self.test_counter >= 1:
+        #     self.test_send_success = True
+        #     print(f"Cell: send pass. On send attempt {self.test_counter}")
+        # TEST s3 fail first 3 times then succeed
+        if self.test_counter >= 5:
             self.test_send_success = True
-            print(f"Cell: send pass. On send attempt {self.test_counter}")
         
+        if self.test_counter >= 30:
+            self.test_send_success = False
+
+        if self.test_counter >= 300:
+            self.test_send_success = True
+
+        if self.test_counter >= 310:
+            self.test_send_success = False
+
+        if self.test_counter >= 1500:
+            self.test_send_success = True
+
+        if self.test_counter >= 1550:
+            self.test_send_success = False
+
+        if self.test_counter >= 1600:
+            self.test_send_success = True
+
         if not self.test_send_success:
             print(f"Cell: send fail. On send attempt {self.test_counter}")
+        else:
+            print(f"Cell: send success. On send attempt {self.test_counter}")
 
         #TEST
         self.test_counter += 1
