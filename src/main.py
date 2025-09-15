@@ -87,7 +87,7 @@ def main():
 
                 # turn on GNSS
                 # here I need to test the power cycling
-                # gnss.enable_power()
+                #gnss.start() THIS DID NOT WORK AND LOSES FIX
 
                 # Fetch position
                 gnss_dict_current = gnss.get_gnss_dict(test_mode=VSCODE_TEST)
@@ -138,12 +138,16 @@ def main():
                         gnss_send_count = 0
 
                         # wait until the next GNSS search interval has elapsed
+                        # switch the gnss off while we wait to save power
+                        #gnss.stop()THIS DID NOT WORK AND LOSES FIX
                         gnss.wait_for_send(last_gnss_time, GNSS_SEARCH_RATE)
                         continue  # Breaks out of the current iteration of the loop and starts the next iteration (get next GNSS reading)
 
                     else:
                         # if not, increment gnss_send_count and wait until the next GNSS search interval has elapsed
                         gnss_send_count += 1
+                        # switch the gnss off while we wait to save power
+                        #gnss.stop() THIS DID NOT WORK AND LOSES FIX
                         gnss.wait_for_send(last_gnss_time, GNSS_SEARCH_RATE)
                         continue  # Breaks out of the current iteration of the loop and starts the next iteration (get next GNSS reading)
                 else:
@@ -172,6 +176,8 @@ def main():
                         gnss_send_count = 0
 
                         # wait until the next GNSS search interval has elapsed
+                        # switch the gnss off while we wait to save power
+                        #gnss.stop()  THIS DID NOT WORK AND LOSES FIX
                         gnss.wait_for_send(last_gnss_time, GNSS_SEARCH_RATE)
                         continue  # Breaks out of the current iteration of the loop and starts the next iteration (get next GNSS reading)
                     else:
@@ -186,6 +192,8 @@ def main():
                         
                         # increment gnss_send_count and wait until the next GNSS search interval has elapsed
                         gnss_send_count += 1
+                        # switch the gnss off while we wait to save power
+                        #gnss.stop()  THIS DID NOT WORK AND LOSES FIX
                         gnss.wait_for_send(last_gnss_time, GNSS_SEARCH_RATE)
                         continue  # Breaks out of the current iteration of the loop and starts the next iteration (get next GNSS reading)
             except Exception as e:

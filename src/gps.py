@@ -66,7 +66,8 @@ class GNSS:
             # Start GNSS tracking
             # I am going go have to do some tests on the pi for this
             # I would ideally like to have it turn on and off to save power
-            pass
+            print("enabling power")
+            self.gnss.enable_power()
         except Exception as e:
             print(f"Error in start: {e}")
 
@@ -75,7 +76,8 @@ class GNSS:
             # Stop GNSS tracking
             # I am going go have to do some tests on the pi for this
             # I would ideally like to have it turn on and off to save power
-            pass
+            print("disabling power")
+            self.gnss.disable_power()
         except Exception as e:
             print(f"Error in stop: {e}")
 
