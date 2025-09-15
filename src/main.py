@@ -1,12 +1,12 @@
 #### for running in vscode (comment out when on Raspberry Pi)
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+#import sys
+#import os
+#sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 ####
-VSCODE_TEST = True # set to False when running on Raspberry Pi
+VSCODE_TEST = False #True # set to False when running on Raspberry Pi
 
 # regular imports
-import numpy as np
+# import numpy as np
 import yaml
 import os
 import sys
@@ -79,7 +79,7 @@ def main():
                 return
             
         # TEST
-        gnss.boot()
+        #gnss.boot()
 
         running = True
         while running:

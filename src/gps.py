@@ -14,7 +14,8 @@ class GNSS:
         try:
             self.search_rate = search_rate
             # Initialize GNSS in UART mode at 9600 baud  
-            #self.gnss = DFRobot_GNSS_UART(9600)
+            # TEST comment line below when not on pi
+            self.gnss = DFRobot_GNSS_UART(9600)
             print(f"GNSS initialized with search rate: {self.search_rate} seconds")
             self.transmit_backlog = []#[]  # Initialize transmit backlog
             self.tmp_transmit_backlog_empty = False # Temporary variable to track if backlog is empty after sending
@@ -37,13 +38,13 @@ class GNSS:
         """
         try:
             #TEST
-            # # Boot up GNSS module
-            # if not self.gnss.begin():  
-            #     print("No Devices! GNSS module not detected.")  
-            #     return False
-            # self.gnss.enable_power()  
-            # self.gnss.set_gnss(GPS_BeiDou_GLONASS)  
-            # self.gnss.rgb_on()   # turn on the onboard RGB LED (it may already be on by default)  
+            # Boot up GNSS module
+            if not self.gnss.begin():  
+                print("No Devices! GNSS module not detected.")  
+                return False
+            self.gnss.enable_power()  
+            self.gnss.set_gnss(GPS_BeiDou_GLONASS)  
+            self.gnss.rgb_on()   # turn on the onboard RGB LED (it may already be on by default)  
 
             # Check for backlog.txt in the logs directory and populate transmit_backlog if it exists
             backlog_path = os.path.join(os.path.dirname(__file__), '../logs/backlog.txt')
