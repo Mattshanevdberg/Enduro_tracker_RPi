@@ -57,7 +57,7 @@ def main():
         except Exception as e:
             print(f"Error initializing GNSS: {e}")
             return
-        
+        #
         # initialize Cellular
         cell = None
         if TRANSMIT_MODE in ["cellular", "dual"]:
