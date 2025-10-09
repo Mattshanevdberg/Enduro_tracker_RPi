@@ -200,7 +200,7 @@ class TestGNSSCreateDecompress(unittest.TestCase):
     def test_create_gnss_json_calls_open_and_dump(self):
         data = {"f": [{"utc": 1}]}
         with patch('builtins.open', mock_open()) as m:
-            path = self.gnss.create_gnss_json(data, unique_id='123', compact=False)
+            path = self.gnss.create_gnss_json(data, unique_id='123', pi_id='pi-123', compact=False)
             self.assertTrue(path.endswith('logs/gnss_123.json'))
             m.assert_called_once()
 
@@ -208,7 +208,7 @@ class TestGNSSCreateDecompress(unittest.TestCase):
         data = {"f": [{"utc": 1}]}
         with patch.object(GNSS, 'compress_gnss_dict', return_value={"f": [[1]]}) as mock_comp, \
              patch('builtins.open', mock_open()):
-            _ = self.gnss.create_gnss_json(data, unique_id='xyz', compact=True)
+            _ = self.gnss.create_gnss_json(data, unique_id='xyz', pi_id='pi-xyz', compact=True)
             mock_comp.assert_called_once()
 
     def test_decompress_gnss_json_scaled_and_unscaled(self):

@@ -356,7 +356,7 @@ class GNSS:
             print(f"Error in compress_gnss_dict: {e}")
             return {"f": []}
 
-    def create_gnss_json(self, gnss_dict_send, unique_id, compact=False):
+    def create_gnss_json(self, gnss_dict_send, unique_id, pi_id, compact=False):
         """
         Create a GNSS JSON file with a unique ID.
 
@@ -371,6 +371,13 @@ class GNSS:
             # Convert to compact format if requested
             if compact:
                 gnss_dict_send = self.compress_gnss_dict(gnss_dict_send, scaled=False)
+            else:
+                # Work with a copy so we do not mutate the caller's data
+                gnss_dict_send = dict(gnss_dict_send)
+
+            # Attach device identifiers to the payload
+            gnss_dict_send["pid"] = pi_id
+
             # Save to a JSON file
             json_path = os.path.join(os.path.dirname(__file__), f'../logs/gnss_{unique_id}.json')
             with open(json_path, 'w') as json_file:

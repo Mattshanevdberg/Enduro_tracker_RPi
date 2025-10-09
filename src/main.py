@@ -42,6 +42,7 @@ def main():
         GNSS_SEND_BATCH_SIZE = config['global']['GNSS_SEND_BATCH_SIZE'] # number of GNSS readings to send in one batch
         SEND_COMPACT = config['global']['SEND_COMPACT'] # whether to send compact JSON
         TRANSMIT_MODE =  config['global']['TRANSMIT_MODE'] # Options: "lora", "cellular", "dual"
+        PI_ID = config['global']['PI_ID'] # unique ID for the tracker
         # LORA_SEND_RATE = config['global']['LORA_SEND_RATE']
         # other globals...
         last_gnss_time = 0
@@ -123,7 +124,7 @@ def main():
                         print(f"reached batch size")
                         #  
                         # create the .json file with unique ID and send
-                        gnss.create_gnss_json(gnss_dict_send, unique_id=current_utc_id, compact=SEND_COMPACT)
+                        gnss.create_gnss_json(gnss_dict_send, unique_id=current_utc_id, pi_id=PI_ID, compact=SEND_COMPACT)
                             # test = gnss.decompress_gnss_json("/home/matthew/Desktop/Master_Dev/Enduro_Tracker_RPi/logs/gnss_1756813036_test_compressed_scaled.json") # for testing purposes
                         
                         # send the data and transmit_backlog_empty = True
@@ -161,7 +162,7 @@ def main():
                         print(f"reached batch size with backlog not empty")
                         #
                         # create the .json file with unique ID and send
-                        gnss.create_gnss_json(gnss_dict_send, unique_id=current_utc_id, compact=SEND_COMPACT)
+                        gnss.create_gnss_json(gnss_dict_send, unique_id=current_utc_id, pi_id=PI_ID, compact=SEND_COMPACT)
                             # test = gnss.decompress_gnss_json("/home/matthew/Desktop/Master_Dev/Enduro_Tracker_RPi/logs/gnss_1756813036_test_compressed_scaled.json") # for testing purposes
                         
                         # send the data and transmit_backlog_empty = True

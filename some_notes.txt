@@ -1,0 +1,6 @@
+POTENTIAL TO REMOVE HEADERS TO DECREASE PAYLOAD:
+header in cellular.py in Cellular.send_test_wifi headers = {"Content-Type": "application/json"}
+Do I need to have this header? What is its purpose? I do not use headers on my web server side
+Content-Type: application/json tells the receiver that the body of the request is JSON. Many frameworks use that header to decide how to parse the payload (e.g., Flask’s request.get_json() looks for it). If your server truly ignores headers and always expects JSON, you could omit it—but you’d be relying on implicit behavior and might confuse other tooling or future changes. I’d keep it unless you’re positive the server never needs to know the payload type.I do use request.get_json on the web server. If I exclude this will that not work?
+I do use request.get_json on the web server. If I exclude this will that not work?
+Flask’s request.get_json() won’t parse unless the request declares JSON—by default it checks Content-Type == application/json. Without that header it returns None (unless you force it with force=True, which you shouldn’t). So keep the header to ensure your server reads the payload properly.

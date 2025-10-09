@@ -3,6 +3,7 @@
     "GNSS_SEND_BATCH_SIZE": 5, # number of GNSS readings to send in one batch
     "SEND_COMPACT": True, # whether to send compact JSON
     "TRANSMIT_MODE": "cellular", # Options: "lora", "cellular", "dual"
+    "PI_ID": "pi001" # unique ID for the tracker
   },
   "mode": "lora", # Options: "lora", "cellular", "dual"
   "gnss_hz": 0.5,
