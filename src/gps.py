@@ -10,11 +10,18 @@ from src.cellular import Cellular
 import random # for TEST mode
 
 class GNSS:
-    def __init__(self, search_rate=2 ):
+    def __init__(self, search_rate=2, test_mode=False):
         try:
             self.search_rate = search_rate
+            self.test_mode = test_mode
+            self.gnss = None
             # Initialize GNSS in UART mode at 9600 baud  
-            #self.gnss = DFRobot_GNSS_UART(9600)
+            if not self.test_mode:
+                try:
+                    self.gnss = DFRobot_GNSS_UART(9600)
+                except Exception as e:
+                    print(f"Failed to initialise GNSS UART: {e}")
+                    self.gnss = None
             print(f"GNSS initialized with search rate: {self.search_rate} seconds")
             self.transmit_backlog = []#[]  # Initialize transmit backlog
             self.tmp_transmit_backlog_empty = False # Temporary variable to track if backlog is empty after sending
@@ -36,14 +43,16 @@ class GNSS:
             bool: True if the GNSS module was initialized successfully, False otherwise.
         """
         try:
-            #TEST
-            # # Boot up GNSS module
-            # if not self.gnss.begin():  
-            #     print("No Devices! GNSS module not detected.")  
-            #     return False
-            # self.gnss.enable_power()  
-            # self.gnss.set_gnss(GPS_BeiDou_GLONASS)  
-            # self.gnss.rgb_on()   # turn on the onboard RGB LED (it may already be on by default)  
+            if not self.test_mode:
+                if not self.gnss:
+                    print("GNSS hardware interface not initialised.")
+                    return False
+                if not self.gnss.begin():  
+                    print("No Devices! GNSS module not detected.")  
+                    return False
+                self.gnss.enable_power()  
+                self.gnss.set_gnss(GPS_BeiDou_GLONASS)  
+                self.gnss.rgb_on()   # turn on the onboard RGB LED (it may already be on by default)  
 
             # Check for backlog.txt in the logs directory and populate transmit_backlog if it exists
             backlog_path = os.path.join(os.path.dirname(__file__), '../logs/backlog.txt')
@@ -62,23 +71,21 @@ class GNSS:
 
     def start(self):
         try:
-            # Start GNSS tracking
-            # I am going go have to do some tests on the pi for this
-            # I would ideally like to have it turn on and off to save power
-            pass
+            if not self.test_mode and self.gnss:
+                print("enabling power")
+                self.gnss.enable_power()
         except Exception as e:
             print(f"Error in start: {e}")
 
     def stop(self):
         try:
-            # Stop GNSS tracking
-            # I am going go have to do some tests on the pi for this
-            # I would ideally like to have it turn on and off to save power
-            pass
+            if not self.test_mode and self.gnss:
+                print("disabling power")
+                self.gnss.disable_power()
         except Exception as e:
             print(f"Error in stop: {e}")
 
-    def get_gnss_dict(self, test_mode=False):
+    def get_gnss_dict(self, test_mode=None):
         """
         Retrieves and parses GNSS (Global Navigation Satellite System) data, returning a compact dictionary
         with key navigation and status fields.
@@ -110,16 +117,21 @@ class GNSS:
 
         # Get raw GNSS data
         try: 
+            if test_mode is None:
+                test_mode = self.test_mode
             # 1) raw bytes (ints) -> text lines
             # TEST
             if test_mode:
                 # Example NMEA sentences for testing
                 all_gnss_data = [36, 71, 78, 71, 71, 65, 44, 49, 49, 51, 55, 49, 53, 46, 48, 48, 48, 44, 51, 52, 48, 56, 46, 51, 54, 53, 53, 51, 44, 83, 44, 48, 49, 56, 50, 51, 46, 53, 54, 54, 50, 48, 44, 69, 44, 49, 44, 49, 56, 44, 48, 46, 55, 44, 55, 56, 46, 55, 44, 77, 44, 51, 48, 46, 56, 44, 77, 44, 44, 42, 54, 52, 13, 10, 36, 71, 78, 71, 76, 76, 44, 51, 52, 48, 56, 46, 51, 54, 53, 53, 51, 44, 83, 44, 48, 49, 56, 50, 51, 46, 53, 54, 54, 50, 48, 44, 69, 44, 49, 49, 51, 55, 49, 53, 46, 48, 48, 48, 44, 65, 44, 65, 42, 53, 67, 13, 10, 36, 71, 78, 71, 83, 65, 44, 65, 44, 51, 44, 48, 49, 44, 48, 50, 44, 48, 51, 44, 48, 55, 44, 48, 56, 44, 49, 52, 44, 49, 55, 44, 49, 57, 44, 50, 50, 44, 51, 48, 44, 44, 44, 49, 46, 53, 44, 48, 46, 55, 44, 49, 46, 51, 44, 49, 42, 51, 55, 13, 10, 36, 71, 78, 71, 83, 65, 44, 65, 44, 51, 44, 48, 56, 44, 50, 57, 44, 51, 48, 44, 51, 54, 44, 52, 53, 44, 44, 44, 44, 44, 44, 44, 44, 49, 46, 53, 44, 48, 46, 55, 44, 49, 46, 51, 44, 52, 42, 51, 49, 13, 10, 36, 71, 78, 71, 83, 65, 44, 65, 44, 51, 44, 55, 56, 44, 56, 48, 44, 55, 57, 44, 44, 44, 44, 44, 44, 44, 44, 44, 44, 49, 46, 53, 44, 48, 46, 55, 44, 49, 46, 51, 44, 50, 42, 51, 65, 13, 10, 36, 71, 80, 71, 83, 86, 44, 51, 44, 49, 44, 49, 50, 44, 48, 49, 44, 54, 53, 44, 49, 48, 55, 44, 50, 49, 44, 48, 50, 44, 51, 56, 44, 49, 51, 53, 44, 50, 49, 44, 48, 51, 44, 50, 48, 44, 48, 53, 53, 44, 51, 53, 44, 48, 54, 44, 48, 55, 44, 51, 51, 48, 44, 44, 48, 42, 54, 56, 13, 10, 36, 71, 80, 71, 83, 86, 44, 51, 44, 50, 44, 49, 50, 44, 48, 55, 44, 51, 50, 44, 51, 53, 52, 44, 50, 50, 44, 48, 56, 44, 49, 52, 44, 49, 49, 51, 44, 50, 56, 44, 49, 51, 44, 48, 54, 44, 50, 53, 54, 44, 44, 49, 52, 44, 54, 48, 44, 50, 49, 52, 44, 50, 55, 44, 48, 42, 54, 51, 13, 10, 36, 71, 80, 71, 83, 86, 44, 51, 44, 51, 44, 49, 50, 44, 49, 55, 44, 52, 53, 44, 50, 54, 48, 44, 50, 52, 44, 49, 57, 44, 50, 54, 44, 50, 55, 52, 44, 50, 55, 44, 50, 50, 44, 52, 48, 44, 50, 50, 52, 44, 50, 54, 44, 51, 48, 44, 53, 49, 44, 51, 49, 54, 44, 50, 54, 44, 48, 42, 54, 56, 13, 10, 36, 66, 68, 71, 83, 86, 44, 50, 44, 49, 44, 48, 54, 44, 48, 53, 44, 44, 44, 51, 49, 44, 48, 56, 44, 50, 54, 44, 49, 49, 48, 44, 50, 53, 44, 50, 57, 44, 55, 57, 44, 50, 51, 50, 44, 49, 54, 44, 51, 48, 44, 51, 55, 44, 49, 51, 53, 44, 50, 52, 44, 48, 42, 52, 65, 13, 10, 36, 66, 68, 71, 83, 86, 44, 50, 44, 50, 44, 48, 54, 44, 51, 54, 44, 53, 54, 44, 48, 50, 52, 44, 51, 52, 44, 52, 53, 44, 54, 55, 44, 50, 52, 49, 44, 50, 54, 44, 48, 42, 55, 54, 13, 10, 36, 71, 76, 71, 83, 86, 44, 50, 44, 49, 44, 48, 54, 44, 55, 56, 44, 50, 49, 44, 48, 52, 48, 44, 51, 52, 44, 56, 48, 44, 52, 53, 44, 50, 48, 55, 44, 50, 49, 44, 55, 57, 44, 55, 51, 44, 48, 54, 53, 44, 49, 57, 44, 56, 56, 44, 48, 53, 44, 49, 52, 52, 44, 44, 48, 42, 55, 57, 13, 10, 36, 71, 76, 71, 83, 86, 44, 50, 44, 50, 44, 48, 54, 44, 56, 49, 44, 54, 56, 44, 49, 54, 52, 44, 44, 54, 56, 44, 50, 50, 44, 50, 57, 48, 44, 44, 48, 42, 55, 69, 13, 10, 36, 71, 78, 82, 77, 67, 44, 49, 49, 51, 55, 49, 54, 46, 48, 48, 48, 44, 65, 44, 51, 52, 48, 56, 46, 51, 54, 53, 53, 51, 44, 83, 44, 48, 49, 56, 50, 51, 46, 53, 54, 54, 50, 49, 44, 69, 44, 48, 46, 48, 48, 44, 53, 55, 46, 52, 51, 44, 48, 50, 48, 57, 50, 53, 44, 44, 44, 65, 44, 86, 42, 50, 65, 13, 10, 36, 71, 78, 86, 84, 71, 44, 53, 55, 46, 52, 51, 44, 84, 44, 44, 77, 44, 48, 46, 48, 48, 44, 78, 44, 48, 46, 48, 48, 44, 75, 44, 65, 42, 49, 54, 13, 10, 36, 71, 78, 90, 68, 65, 44, 49, 49, 51, 55, 49, 54, 46, 48, 48, 48, 44, 48, 50, 44, 48, 57, 44, 50, 48, 50, 53, 44, 48, 48, 44, 48, 48, 42, 52, 53, 13, 10, 36, 71, 80, 84, 88, 84, 44, 48, 49, 44, 48, 49, 44, 48, 49, 44, 65, 78, 84, 69, 78, 78, 65, 32, 79, 75, 42, 51, 53, 13, 10]
             else:
-                try:
-                    all_gnss_data = self.gnss.get_all_gnss() or [] # get the raw byte array (ints)
-                except Exception as e:
-                    print(f"Error in get_gnss_dict: {e}")
+                if self.gnss:
+                    try:
+                        all_gnss_data = self.gnss.get_all_gnss() or [] # get the raw byte array (ints)
+                    except Exception as e:
+                        print(f"Error in get_gnss_dict: {e}")
+                        all_gnss_data = []
+                else:
                     all_gnss_data = []
             all_gnss_data_text = ''.join(chr(b) for b in all_gnss_data) # convert to text
             all_gnss_data_text = all_gnss_data_text.replace('\x00','') # drop zeros just in case

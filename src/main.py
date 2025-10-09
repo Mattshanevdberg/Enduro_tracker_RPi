@@ -1,15 +1,15 @@
 #### for running in vscode (comment out when on Raspberry Pi)
 import sys
 import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+VSCODE_TEST = True  # set to False when running on Raspberry Pi
+
+if VSCODE_TEST:
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 ####
-VSCODE_TEST = True # set to False when running on Raspberry Pi
 
 # regular imports
-import numpy as np
 import yaml
-import os
-import sys
 from pathlib import Path
 
 # Load configuration from JSON file
@@ -52,12 +52,13 @@ def main():
 
         # initialize GNSS
         try:
-            gnss = GNSS(search_rate=GNSS_SEARCH_RATE)
+            gnss = GNSS(search_rate=GNSS_SEARCH_RATE, test_mode=VSCODE_TEST)
         except Exception as e:
             print(f"Error initializing GNSS: {e}")
             return
         
         # initialize Cellular
+        cell = None
         if TRANSMIT_MODE in ["cellular", "dual"]:
             try:
                 cell = Cellular()
@@ -65,21 +66,18 @@ def main():
                 print(f"Error initializing Cellular: {e}")
                 return
         
-        if not VSCODE_TEST:
-            # boot the GNSS
-            try:
-                boot_success = False
-                while not boot_success:
-                    boot_success = gnss.boot()
-                    if not boot_success:
-                        print("GNSS boot failed, retrying in 5 seconds...")
-                        time.sleep(5)
-            except Exception as e:
-                print(f"Error during GNSS boot: {e}")
-                return
-            
-        # TEST
-        gnss.boot()
+        # boot the GNSS (loops on hardware, single attempt in VSCode test mode)
+        try:
+            boot_success = False
+            while not boot_success:
+                boot_success = gnss.boot()
+                if boot_success or VSCODE_TEST:
+                    break
+                print("GNSS boot failed, retrying in 5 seconds...")
+                time.sleep(5)
+        except Exception as e:
+            print(f"Error during GNSS boot: {e}")
+            return
 
         running = True
         while running:
@@ -87,7 +85,7 @@ def main():
 
                 # turn on GNSS
                 # here I need to test the power cycling
-                # gnss.enable_power()
+                # gnss.start()
 
                 # Fetch position
                 gnss_dict_current = gnss.get_gnss_dict(test_mode=VSCODE_TEST)
@@ -138,12 +136,16 @@ def main():
                         gnss_send_count = 0
 
                         # wait until the next GNSS search interval has elapsed
+                        # switch the gnss off while we wait to save power
+                        # gnss.stop()
                         gnss.wait_for_send(last_gnss_time, GNSS_SEARCH_RATE)
                         continue  # Breaks out of the current iteration of the loop and starts the next iteration (get next GNSS reading)
 
                     else:
                         # if not, increment gnss_send_count and wait until the next GNSS search interval has elapsed
                         gnss_send_count += 1
+                        # switch the gnss off while we wait to save power
+                        # gnss.stop()
                         gnss.wait_for_send(last_gnss_time, GNSS_SEARCH_RATE)
                         continue  # Breaks out of the current iteration of the loop and starts the next iteration (get next GNSS reading)
                 else:
@@ -172,6 +174,8 @@ def main():
                         gnss_send_count = 0
 
                         # wait until the next GNSS search interval has elapsed
+                        # switch the gnss off while we wait to save power
+                        # gnss.stop()
                         gnss.wait_for_send(last_gnss_time, GNSS_SEARCH_RATE)
                         continue  # Breaks out of the current iteration of the loop and starts the next iteration (get next GNSS reading)
                     else:
@@ -186,6 +190,8 @@ def main():
                         
                         # increment gnss_send_count and wait until the next GNSS search interval has elapsed
                         gnss_send_count += 1
+                        # switch the gnss off while we wait to save power
+                        # gnss.stop()
                         gnss.wait_for_send(last_gnss_time, GNSS_SEARCH_RATE)
                         continue  # Breaks out of the current iteration of the loop and starts the next iteration (get next GNSS reading)
             except Exception as e:
